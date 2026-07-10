@@ -1,0 +1,9 @@
+{
+  "name": "taxifier",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Calculate your tax in 2 minutes; ask any tax question.",
+  "engines": {
+    "node": ">=18"
+  }
+}

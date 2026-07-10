@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Taxifier</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #0F2A1D;
+    --bg-2: #143424;
+    --paper: #F6F2E7;
+    --paper-2: #EFE9D8;
+    --ink: #16211B;
+    --ink-soft: #445245;
+    --naira: #2F8F4E;
+    --naira-deep: #1E6B39;
+    --stamp-red: #B23B23;
+    --brass: #A9791F;
+    --line: rgba(22,33,27,0.16);
+    --paper-line: rgba(246,242,231,0.14);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background: radial-gradient(1200px 700px at 15% -10%, #1a3d28 0%, var(--bg) 55%), var(--bg);
+    color: var(--paper);
+    font-family:'Inter', sans-serif;
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+  .app{max-width:880px;margin:0 auto;padding:28px 18px 60px;}
+
+  /* Header — passbook cover */
+  .cover{
+    border:1px solid var(--paper-line);
+    border-radius:14px;
+    padding:22px 24px;
+    background:
+      repeating-linear-gradient(180deg, rgba(255,255,255,0.02) 0 2px, transparent 2px 34px),
+      linear-gradient(160deg, #123423, #0d2318);
+    position:relative;
+    overflow:hidden;
+    margin-bottom:22px;
+  }
+  .cover::before{
+    content:"";
+    position:absolute; inset:8px;
+    border:1px solid rgba(246,242,231,0.18);
+    border-radius:8px;
+    pointer-events:none;
+  }
+  .eyebrow{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:#9FD8B4;
+    margin:0 0 8px;
+  }
+  h1.title{
+    font-family:'Zilla Slab', serif;
+    font-weight:700;
+    font-size:clamp(28px,4.6vw,40px);
+    margin:0 0 6px;
+    color:#F6F2E7;
+    letter-spacing:-0.01em;
+  }
+  .sub{
+    font-size:14.5px;
+    color:#C9D9CD;
+    max-width:56ch;
+    line-height:1.5;
+    margin:0;
+  }
+  .badge{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    margin-top:14px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    color:#0F2A1D;
+    background:#9FD8B4;
+    padding:5px 10px 5px 8px;
+    border-radius:999px;
+    font-weight:600;
+    letter-spacing:.02em;
+  }
+  .badge::before{content:"●"; color:var(--naira-deep); font-size:8px;}
+
+  /* Tabs styled as receipt stubs */
+  .tabs{
+    display:flex;
+    gap:0;
+    margin:22px 0 0;
+    border-bottom:1px solid var(--paper-line);
+  }
+  .tab{
+    flex:1;
+    text-align:center;
+    padding:12px 8px 14px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12.5px;
+    letter-spacing:.04em;
+    text-transform:uppercase;
+    color:#8FA894;
+    background:transparent;
+    border:none;
+    cursor:pointer;
+    position:relative;
+    transition:color .15s ease;
+  }
+  .tab span.num{opacity:.6; margin-right:6px;}
+  .tab.active{color:#F6F2E7;}
+  .tab.active::after{
+    content:"";
+    position:absolute; left:14%; right:14%; bottom:-1px; height:2px;
+    background:var(--naira);
+    border-radius:2px;
+  }
+  .tab:not(.active):hover{color:#c8dccd;}
+
+  .panel{display:none; margin-top:20px;}
+  .panel.active{display:block; animation:fade .25s ease;}
+  @keyframes fade{from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:translateY(0);}}
+
+  .card{
+    background:var(--paper);
+    color:var(--ink);
+    border-radius:12px;
+    padding:22px;
+    box-shadow:0 18px 40px -20px rgba(0,0,0,0.55);
+  }
+  .card + .card{margin-top:16px;}
+  .card h2{
+    font-family:'Zilla Slab', serif;
+    font-size:20px;
+    margin:0 0 4px;
+    color:var(--ink);
+  }
+  .card .hint{font-size:13px; color:var(--ink-soft); margin:0 0 16px; line-height:1.5;}
+
+  /* Chat */
+  .chat-window{
+    height:360px;
+    overflow-y:auto;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+    padding:4px 2px 8px;
+  }
+  .msg{
+    max-width:82%;
+    padding:10px 13px;
+    border-radius:10px;
+    font-size:14.5px;
+    line-height:1.5;
+    white-space:pre-wrap;
+  }
+  .msg.user{
+    align-self:flex-end;
+    background:var(--naira);
+    color:#fff;
+    border-bottom-right-radius:3px;
+  }
+  .msg.bot{
+    align-self:flex-start;
+    background:var(--paper-2);
+    color:var(--ink);
+    border:1px solid var(--line);
+    border-bottom-left-radius:3px;
+  }
+  .msg.bot.loading{color:var(--ink-soft); font-style:italic;}
+  .chat-input-row{
+    display:flex;
+    gap:8px;
+    margin-top:12px;
+    border-top:1px solid var(--line);
+    padding-top:14px;
+  }
+  .chat-input-row input{
+    flex:1;
+    padding:11px 13px;
+    border-radius:8px;
+    border:1px solid var(--line);
+    font-family:'Inter', sans-serif;
+    font-size:14.5px;
+    background:#fff;
+    color:var(--ink);
+  }
+  .chat-input-row input:focus{outline:2px solid var(--naira); outline-offset:1px;}
+  .suggestions{display:flex; flex-wrap:wrap; gap:7px; margin-bottom:12px;}
+  .chip{
+    font-size:12.5px;
+    padding:6px 11px;
+    border-radius:999px;
+    border:1px solid var(--line);
+    background:#fff;
+    color:var(--ink-soft);
+    cursor:pointer;
+    font-family:'Inter', sans-serif;
+  }
+  .chip:hover{border-color:var(--naira); color:var(--naira-deep);}
+
+  /* Buttons */
+  .btn{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:13px;
+    letter-spacing:.03em;
+    padding:11px 18px;
+    border-radius:8px;
+    border:none;
+    cursor:pointer;
+    font-weight:600;
+    transition:transform .1s ease, opacity .15s ease;
+  }
+  .btn:active{transform:scale(0.98);}
+  .btn-primary{background:var(--naira); color:#fff;}
+  .btn-primary:hover{background:var(--naira-deep);}
+  .btn-ghost{background:transparent; border:1px solid var(--line); color:var(--ink);}
+  .btn-ghost:hover{border-color:var(--ink);}
+  .btn:disabled{opacity:.5; cursor:not-allowed;}
+
+  /* Form */
+  .field{margin-bottom:16px;}
+  .field label{
+    display:block;
+    font-size:12.5px;
+    font-weight:600;
+    color:var(--ink-soft);
+    margin-bottom:6px;
+    text-transform:uppercase;
+    letter-spacing:.03em;
+  }
+  .field input, .field select{
+    width:100%;
+    padding:11px 12px;
+    border-radius:8px;
+    border:1px solid var(--line);
+    background:#fff;
+    color:var(--ink);
+    font-family:'IBM Plex Mono', monospace;
+    font-size:14.5px;
+  }
+  .field select{font-family:'Inter',sans-serif;}
+  .field input:focus, .field select:focus{outline:2px solid var(--naira); outline-offset:1px;}
+  .field .note{font-size:12px; color:var(--ink-soft); margin-top:5px; line-height:1.4;}
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
+  @media (max-width:560px){.grid2{grid-template-columns:1fr;}}
+  .row-radio{display:flex; gap:10px; flex-wrap:wrap;}
+  .radio-opt{
+    flex:1;
+    min-width:130px;
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:10px 12px;
+    cursor:pointer;
+    font-size:13.5px;
+    text-align:center;
+    background:#fff;
+  }
+  .radio-opt.selected{border-color:var(--naira); background:#EAF6EE; color:var(--naira-deep); font-weight:600;}
+
+  /* Receipt / stub result */
+  .stub{
+    position:relative;
+    background:var(--paper);
+    color:var(--ink);
+    border-radius:4px;
+    padding:26px 26px 34px;
+    font-family:'IBM Plex Mono', monospace;
+    box-shadow:0 22px 46px -22px rgba(0,0,0,0.6);
+    background-image: repeating-linear-gradient(180deg, transparent 0 37px, rgba(22,33,27,0.06) 37px 38px);
+  }
+  .stub::after{
+    content:"";
+    position:absolute; left:0; right:0; bottom:-1px; height:14px;
+    background-image: radial-gradient(circle at 10px 0, transparent 7px, var(--bg) 7.5px);
+    background-size:20px 14px;
+    background-repeat:repeat-x;
+  }
+  .stub-head{
+    display:flex; justify-content:space-between; align-items:flex-start;
+    border-bottom:1px dashed var(--line);
+    padding-bottom:14px; margin-bottom:14px;
+  }
+  .stub-head .brand{font-family:'Zilla Slab', serif; font-weight:700; font-size:16px;}
+  .stub-head .date{font-size:11px; color:var(--ink-soft);}
+  .stamp{
+    position:absolute; top:22px; right:20px;
+    border:3px solid var(--stamp-red);
+    color:var(--stamp-red);
+    font-family:'Zilla Slab', serif;
+    font-weight:700;
+    font-size:15px;
+    padding:5px 12px;
+    border-radius:6px;
+    transform:rotate(9deg);
+    text-transform:uppercase;
+    letter-spacing:.05em;
+    opacity:.9;
+  }
+  .stamp.free{border-color:var(--naira-deep); color:var(--naira-deep);}
+  .line-item{
+    display:flex; justify-content:space-between;
+    font-size:13.5px;
+    padding:6px 0;
+  }
+  .line-item.total{
+    border-top:1px solid var(--ink);
+    margin-top:8px; padding-top:10px;
+    font-size:16px; font-weight:700;
+  }
+  .line-item .amt{font-weight:600;}
+  .band-table{width:100%; border-collapse:collapse; margin-top:6px; font-size:12.5px;}
+  .band-table th{text-align:left; font-weight:600; color:var(--ink-soft); padding:5px 4px; border-bottom:1px solid var(--line); font-size:11px; text-transform:uppercase; letter-spacing:.03em;}
+  .band-table td{padding:6px 4px; border-bottom:1px solid rgba(22,33,27,0.08);}
+  .band-table td.num, .band-table th.num{text-align:right;}
+  .muted-row td{color:var(--ink-soft); opacity:.55;}
+  .actions-row{display:flex; gap:10px; flex-wrap:wrap; margin-top:18px;}
+  .foot-note{font-size:11.5px; color:var(--ink-soft); margin-top:16px; line-height:1.5; font-family:'Inter',sans-serif;}
+
+  .empty{
+    text-align:center; padding:40px 20px; color:var(--ink-soft);
+  }
+  .empty .big{font-size:32px; margin-bottom:8px;}
+
+  ::-webkit-scrollbar{width:8px;}
+  ::-webkit-scrollbar-thumb{background:rgba(22,33,27,0.2); border-radius:4px;}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="cover">
+    <p class="eyebrow">Tax made plain · Nigeria Tax Act 2025</p>
+    <h1 class="title">Taxifier</h1>
+    <p class="sub">Calculate your tax in 2 minutes; ask any tax question.</p>
+    <div class="badge">Covers employees, business owners &amp; informal income</div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="chat"><span class="num">01</span>Ask</button>
+    <button class="tab" data-tab="calc"><span class="num">02</span>Calculate</button>
+    <button class="tab" data-tab="result"><span class="num">03</span>Your Breakdown</button>
+  </div>
+
+  <!-- CHAT PANEL -->
+  <div class="panel active" id="panel-chat">
+    <div class="card">
+      <h2>Ask about your tax</h2>
+      <p class="hint">Ask anything — "Do I need to pay tax if I sell on Instagram?" or "What is TIN and do I need one?" Answers are kept simple, no jargon.</p>
+      <div class="suggestions" id="suggestions">
+        <div class="chip" data-q="Do I have to pay tax if I sell things on WhatsApp or Instagram?">Do informal/online sellers pay tax?</div>
+        <div class="chip" data-q="What is a TIN and how do I get one?">What is a TIN?</div>
+        <div class="chip" data-q="What happens if I don't pay my tax or file late?">What if I don't pay?</div>
+        <div class="chip" data-q="I earn 250,000 naira a month from a small business, do I owe tax?">Do I owe tax on ₦250k/month?</div>
+      </div>
+      <div class="chat-window" id="chatWindow">
+        <div class="msg bot">Hi! I'm here to explain Nigeria's tax rules in plain language — no big grammar. Ask me anything, like "do I need to pay tax on money my aunty sends me?" or tap a question above.</div>
+      </div>
+      <div class="chat-input-row">
+        <input type="text" id="chatInput" placeholder="Type your tax question…" />
+        <button class="btn btn-primary" id="sendBtn">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CALCULATOR PANEL -->
+  <div class="panel" id="panel-calc">
+    <div class="card">
+      <h2>Tell us about your income</h2>
+      <p class="hint">This takes about a minute. All figures should be yearly (annual) — if you only know your monthly amount, we'll do the maths for you further down.</p>
+
+      <div class="field">
+        <label>How do you earn?</label>
+        <div class="row-radio" id="incomeTypeRow">
+          <div class="radio-opt selected" data-val="employee">Salary / employee</div>
+          <div class="radio-opt" data-val="business">Business / self-employed</div>
+          <div class="radio-opt" data-val="informal">Informal / gig / side hustle</div>
+        </div>
+      </div>
+
+      <div class="grid2">
+        <div class="field">
+          <label>Amount</label>
+          <input type="number" id="incomeAmount" placeholder="e.g. 250000" min="0">
+        </div>
+        <div class="field">
+          <label>Frequency</label>
+          <select id="incomeFreq">
+            <option value="month">Per month</option>
+            <option value="year">Per year</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field" id="expenseField" style="display:none;">
+        <label>Business expenses (yearly, if any)</label>
+        <input type="number" id="expenseAmount" placeholder="e.g. 400000 — cost of goods, transport, rent for shop, etc.">
+        <p class="note">Only genuine business costs. This is subtracted before tax is calculated on your profit.</p>
+      </div>
+
+      <div class="grid2">
+        <div class="field">
+          <label>Rent you pay yearly (optional)</label>
+          <input type="number" id="rentAmount" placeholder="e.g. 600000">
+          <p class="note">You can deduct 20% of this, up to ₦500,000 — this is the new "Rent Relief."</p>
+        </div>
+        <div class="field">
+          <label>Pension contribution</label>
+          <select id="pensionOpt">
+            <option value="auto">Yes — standard 8% (employees)</option>
+            <option value="none">No pension contribution</option>
+            <option value="custom">I contribute a specific amount</option>
+          </select>
+        </div>
+      </div>
+      <div class="field" id="pensionCustomField" style="display:none;">
+        <label>Yearly pension amount</label>
+        <input type="number" id="pensionCustomAmount" placeholder="e.g. 150000">
+      </div>
+
+      <div class="field">
+        <label>Do you run a registered company (CAC), not just a personal side income?</label>
+        <div class="row-radio" id="companyRow">
+          <div class="radio-opt selected" data-val="no">No, it's personal</div>
+          <div class="radio-opt" data-val="yes">Yes, registered company</div>
+        </div>
+      </div>
+      <div class="field" id="companyExtra" style="display:none;">
+        <div class="grid2">
+          <div class="field">
+            <label>Yearly company turnover</label>
+            <input type="number" id="turnoverAmount" placeholder="e.g. 30000000">
+          </div>
+          <div class="field">
+            <label>Total fixed assets</label>
+            <input type="number" id="assetsAmount" placeholder="e.g. 5000000">
+          </div>
+        </div>
+        <div class="field">
+          <label>Is it a professional services firm? (law, accounting, consulting, medicine, etc.)</label>
+          <div class="row-radio" id="profRow">
+            <div class="radio-opt selected" data-val="no">No</div>
+            <div class="radio-opt" data-val="yes">Yes</div>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn btn-primary" id="calcBtn" style="width:100%; margin-top:6px;">Calculate my tax →</button>
+    </div>
+  </div>
+
+  <!-- RESULT PANEL -->
+  <div class="panel" id="panel-result">
+    <div id="resultWrap">
+      <div class="card">
+        <div class="empty">
+          <div class="big">🧾</div>
+          <p>You haven't calculated yet. Go to <strong>Calculate</strong> and enter your income to see your breakdown here.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+/* ---------------- TAB SWITCHING ---------------- */
+const tabs = document.querySelectorAll('.tab');
+const panels = { chat: document.getElementById('panel-chat'), calc: document.getElementById('panel-calc'), result: document.getElementById('panel-result') };
+tabs.forEach(t => t.addEventListener('click', () => {
+  tabs.forEach(x => x.classList.remove('active'));
+  t.classList.add('active');
+  Object.values(panels).forEach(p => p.classList.remove('active'));
+  panels[t.dataset.tab].classList.add('active');
+}));
+function goToTab(name){
+  tabs.forEach(x => x.classList.toggle('active', x.dataset.tab === name));
+  Object.entries(panels).forEach(([k,p]) => p.classList.toggle('active', k===name));
+}
+
+/* ---------------- RADIO GROUPS ---------------- */
+function wireRadioRow(rowId, onSelect){
+  const row = document.getElementById(rowId);
+  row.querySelectorAll('.radio-opt').forEach(opt => {
+    opt.addEventListener('click', () => {
+      row.querySelectorAll('.radio-opt').forEach(o => o.classList.remove('selected'));
+      opt.classList.add('selected');
+      onSelect(opt.dataset.val);
+    });
+  });
+}
+let incomeType = 'employee';
+wireRadioRow('incomeTypeRow', (val) => {
+  incomeType = val;
+  document.getElementById('expenseField').style.display = (val === 'business' || val === 'informal') ? 'block' : 'none';
+});
+let hasCompany = 'no';
+wireRadioRow('companyRow', (val) => {
+  hasCompany = val;
+  document.getElementById('companyExtra').style.display = val === 'yes' ? 'block' : 'none';
+});
+let isProfessional = 'no';
+wireRadioRow('profRow', (val) => { isProfessional = val; });
+
+document.getElementById('pensionOpt').addEventListener('change', (e) => {
+  document.getElementById('pensionCustomField').style.display = e.target.value === 'custom' ? 'block' : 'none';
+});
+
+/* ---------------- TAX ENGINE (Nigeria Tax Act 2025) ---------------- */
+// Personal income tax bands (annual, effective 1 Jan 2026)
+const PIT_BANDS = [
+  { upTo: 800000,     rate: 0.00 },
+  { upTo: 3000000,    rate: 0.15 },
+  { upTo: 12000000,   rate: 0.18 },
+  { upTo: 25000000,   rate: 0.21 },
+  { upTo: 50000000,   rate: 0.23 },
+  { upTo: Infinity,   rate: 0.25 }
+];
+
+function computePIT(chargeableIncome){
+  let remaining = chargeableIncome;
+  let lastCap = 0;
+  let total = 0;
+  const breakdown = [];
+  for (const band of PIT_BANDS){
+    const bandWidth = band.upTo - lastCap;
+    const taxableInBand = Math.max(0, Math.min(remaining, bandWidth));
+    const bandTax = taxableInBand * band.rate;
+    breakdown.push({
+      from: lastCap, to: band.upTo, rate: band.rate,
+      taxableInBand, bandTax, used: taxableInBand > 0
+    });
+    total += bandTax;
+    remaining -= taxableInBand;
+    lastCap = band.upTo;
+    if (remaining <= 0) break;
+  }
+  return { total, breakdown };
+}
+
+function fmtNaira(n){
+  const rounded = Math.round(n);
+  return '₦' + rounded.toLocaleString('en-NG');
+}
+
+function runCalculation(){
+  const rawAmount = parseFloat(document.getElementById('incomeAmount').value) || 0;
+  const freq = document.getElementById('incomeFreq').value;
+  const annualGross = freq === 'month' ? rawAmount * 12 : rawAmount;
+
+  const expensesRaw = parseFloat(document.getElementById('expenseAmount').value) || 0;
+  const isBizLike = (incomeType === 'business' || incomeType === 'informal');
+  const netIncome = isBizLike ? Math.max(0, annualGross - expensesRaw) : annualGross;
+
+  const rentPaid = parseFloat(document.getElementById('rentAmount').value) || 0;
+  const rentRelief = Math.min(rentPaid * 0.20, 500000);
+
+  const pensionMode = document.getElementById('pensionOpt').value;
+  let pensionDeduction = 0;
+  if (pensionMode === 'auto') pensionDeduction = netIncome * 0.08;
+  else if (pensionMode === 'custom') pensionDeduction = parseFloat(document.getElementById('pensionCustomAmount').value) || 0;
+
+  const chargeableIncome = Math.max(0, netIncome - rentRelief - pensionDeduction);
+
+  // Company path
+  let companyResult = null;
+  if (hasCompany === 'yes'){
+    const turnover = parseFloat(document.getElementById('turnoverAmount').value) || 0;
+    const assets = parseFloat(document.getElementById('assetsAmount').value) || 0;
+    const qualifiesSmall = turnover <= 50000000 && assets <= 250000000 && isProfessional === 'no';
+    companyResult = { turnover, assets, qualifiesSmall };
+  }
+
+  const { total, breakdown } = computePIT(chargeableIncome);
+  const isExempt = chargeableIncome <= 800000;
+
+  const state = {
+    incomeType, annualGross, expensesRaw, netIncome, rentPaid, rentRelief,
+    pensionMode, pensionDeduction, chargeableIncome, total, breakdown, isExempt,
+    hasCompany, companyResult
+  };
+  window.__lastTaxState = state;
+  renderResult(state);
+  goToTab('result');
+}
+
+function bandLabel(from, to){
+  const toLabel = to === Infinity ? 'above' : fmtNaira(to);
+  return fmtNaira(from + (from===0?0:1)) + ' – ' + toLabel;
+}
+
+function renderResult(s){
+  const wrap = document.getElementById('resultWrap');
+  const dateStr = new Date().toLocaleDateString('en-NG', { year:'numeric', month:'short', day:'numeric' });
+
+  let companyBlock = '';
+  if (s.hasCompany === 'yes' && s.companyResult){
+    const cr = s.companyResult;
+    companyBlock = `
+      <div class="line-item"><span>Company turnover</span><span class="amt">${fmtNaira(cr.turnover)}</span></div>
+      <div class="line-item"><span>Fixed assets</span><span class="amt">${fmtNaira(cr.assets)}</span></div>
+      <div class="line-item"><span>Small-company status (NTA 2025)</span><span class="amt">${cr.qualifiesSmall ? 'Qualifies — 0% CIT' : 'Does not qualify'}</span></div>
+      ${!cr.qualifiesSmall ? '<div class="foot-note">Your company likely pays 30% Companies Income Tax on profit, plus the 4% Development Levy on assessable profit. This calculator focuses on personal income tax — for company filing, a registered tax practitioner should confirm the exact figure.</div>' : ''}
+    `;
+  }
+
+  const bandRows = s.breakdown.map(b => `
+    <tr class="${b.used ? '' : 'muted-row'}">
+      <td>${bandLabel(b.from, b.to)}</td>
+      <td class="num">${(b.rate*100).toFixed(0)}%</td>
+      <td class="num">${fmtNaira(b.taxableInBand)}</td>
+      <td class="num">${fmtNaira(b.bandTax)}</td>
+    </tr>
+  `).join('');
+
+  const stampText = s.isExempt ? 'Tax free' : 'Tax due';
+  const stampClass = s.isExempt ? 'free' : '';
+
+  wrap.innerHTML = `
+    <div class="stub">
+      <span class="stamp ${stampClass}">${stampText}</span>
+      <div class="stub-head">
+        <div>
+          <div class="brand">Taxifier — Tax Breakdown</div>
+          <div class="date">${dateStr} · Based on the Nigeria Tax Act, 2025 (effective 1 Jan 2026)</div>
+        </div>
+      </div>
+
+      <div class="line-item"><span>Income type</span><span class="amt">${labelForType(s.incomeType)}</span></div>
+      <div class="line-item"><span>Gross yearly income</span><span class="amt">${fmtNaira(s.annualGross)}</span></div>
+      ${s.expensesRaw > 0 ? `<div class="line-item"><span>Less: business expenses</span><span class="amt">- ${fmtNaira(s.expensesRaw)}</span></div>` : ''}
+      ${s.expensesRaw > 0 ? `<div class="line-item"><span>Net income / profit</span><span class="amt">${fmtNaira(s.netIncome)}</span></div>` : ''}
+      <div class="line-item"><span>Less: rent relief</span><span class="amt">- ${fmtNaira(s.rentRelief)}</span></div>
+      <div class="line-item"><span>Less: pension contribution</span><span class="amt">- ${fmtNaira(s.pensionDeduction)}</span></div>
+      <div class="line-item total"><span>Chargeable income</span><span class="amt">${fmtNaira(s.chargeableIncome)}</span></div>
+
+      ${!s.isExempt ? `
+      <table class="band-table">
+        <thead><tr><th>Band</th><th class="num">Rate</th><th class="num">Taxed at this rate</th><th class="num">Tax</th></tr></thead>
+        <tbody>${bandRows}</tbody>
+      </table>
+      ` : `<div class="foot-note" style="margin-top:10px;">Your chargeable income is ₦800,000 or less, so under the Nigeria Tax Act 2025 you owe <strong>no personal income tax</strong>. This mirrors the exemption for minimum-wage earners.</div>`}
+
+      <div class="line-item total" style="margin-top:14px;">
+        <span>${s.isExempt ? 'Tax owed' : 'Total yearly tax owed'}</span>
+        <span class="amt">${fmtNaira(s.total)}</span>
+      </div>
+      ${!s.isExempt ? `<div class="line-item"><span>≈ Per month</span><span class="amt">${fmtNaira(s.total/12)}</span></div>` : ''}
+
+      ${companyBlock}
+
+      <div class="foot-note">
+        This is an educational estimate based on the Nigeria Tax Act 2025, Nigeria Tax Administration Act 2025 and public guidance available as of mid-2026. Actual liability can differ based on documentation, deductions you can prove, and your specific state/LGA rules. Always keep receipts and confirm with the Nigeria Revenue Service or a registered tax practitioner before filing. You'll need a valid TIN either way.
+      </div>
+    </div>
+
+    <div class="actions-row">
+      <button class="btn btn-primary" id="explainBtn">Ask AI to explain this</button>
+      <button class="btn btn-ghost" id="downloadBtn">Download summary (.txt)</button>
+      <button class="btn btn-ghost" id="recalcBtn">Recalculate</button>
+    </div>
+  `;
+
+  document.getElementById('explainBtn').addEventListener('click', () => explainResult(s));
+  document.getElementById('downloadBtn').addEventListener('click', () => downloadSummary(s));
+  document.getElementById('recalcBtn').addEventListener('click', () => goToTab('calc'));
+}
+
+function labelForType(t){
+  return t === 'employee' ? 'Salary / employee' : t === 'business' ? 'Business / self-employed' : 'Informal / gig income';
+}
+
+function downloadSummary(s){
+  const lines = [];
+  lines.push('TAXIFIER — TAX BREAKDOWN SUMMARY');
+  lines.push('Based on the Nigeria Tax Act, 2025 (effective 1 Jan 2026)');
+  lines.push('Generated: ' + new Date().toLocaleString('en-NG'));
+  lines.push('----------------------------------------');
+  lines.push('Income type: ' + labelForType(s.incomeType));
+  lines.push('Gross yearly income: ' + fmtNaira(s.annualGross));
+  if (s.expensesRaw > 0){
+    lines.push('Business expenses: -' + fmtNaira(s.expensesRaw));
+    lines.push('Net income / profit: ' + fmtNaira(s.netIncome));
+  }
+  lines.push('Rent relief deducted: -' + fmtNaira(s.rentRelief));
+  lines.push('Pension deducted: -' + fmtNaira(s.pensionDeduction));
+  lines.push('Chargeable income: ' + fmtNaira(s.chargeableIncome));
+  lines.push('----------------------------------------');
+  if (s.isExempt){
+    lines.push('RESULT: TAX FREE — no personal income tax owed.');
+  } else {
+    lines.push('Band-by-band tax:');
+    s.breakdown.filter(b=>b.used).forEach(b => {
+      lines.push('  ' + bandLabel(b.from,b.to) + ' @ ' + (b.rate*100).toFixed(0) + '% -> ' + fmtNaira(b.bandTax));
+    });
+    lines.push('TOTAL YEARLY TAX OWED: ' + fmtNaira(s.total));
+    lines.push('Approx. monthly: ' + fmtNaira(s.total/12));
+  }
+  lines.push('----------------------------------------');
+  lines.push('This is an educational estimate, not an official assessment.');
+  lines.push('Confirm with the Nigeria Revenue Service or a registered tax practitioner before filing.');
+
+  const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'naira-ledger-tax-summary.txt';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/* ---------------- CHAT (Claude API) ---------------- */
+const SYSTEM_PROMPT = `You are a friendly, patient tax explainer for ordinary Nigerians, embedded inside an app called "Taxifier". Explain things about the Nigeria Tax Act 2025, Nigeria Tax Administration Act 2025, Nigeria Revenue Service Act 2025 and Joint Revenue Board Act 2025 (all part of the "Tax Reform Acts", commenced 1 Jan 2026, replacing PITA, CITA, VAT Act, CGT Act, Petroleum Profits Tax Act and Stamp Duties Act).
+
+Ground facts to use:
+- Personal income tax is progressive: first ₦800,000/year is tax-free; then 15% up to ₦3m; 18% up to ₦12m; 21% up to ₦25m; 23% up to ₦50m; 25% above ₦50m.
+- The old Consolidated Relief Allowance is gone, replaced by Rent Relief: lower of 20% of annual rent paid or ₦500,000.
+- Pension (8%), NHF and NHIS contributions remain deductible; NHF is now voluntary for private-sector workers.
+- Everyone earning taxable income, including informal-sector workers, freelancers, online sellers and gig workers, is expected to register for a Tax Identification Number (TIN) and may need to self-file if not under employer PAYE.
+- A "small company" (turnover ≤₦50m/year, fixed assets ≤₦250m, not a professional services firm) pays 0% Companies Income Tax; a "small business" for VAT purposes uses a ₦100m turnover threshold — these are two different tests.
+- Standard company tax is 30% CIT plus a 4% Development Levy on assessable profit; large multinationals face a 15% minimum effective tax rate.
+- Filing/registration failures attract administrative penalties; underpayment attracts interest.
+
+Style rules:
+- Use very simple, everyday English. Short sentences. Avoid legal jargon; when you must use a term (like "chargeable income" or "TIN"), define it in the same sentence.
+- Prefer concrete naira examples over abstract explanation.
+- Keep answers focused and skimmable — use short paragraphs or a few bullet points, not long essays.
+- Be encouraging, never condescending. Many users have never filed tax before.
+- If a question needs a definitive legal answer (e.g. a dispute, a large or unusual transaction), say so plainly and recommend confirming with the Nigeria Revenue Service or a registered tax practitioner — but still give your best plain-English explanation first.
+- You are not a lawyer; don't state opinions as certainties on unsettled or disputed points.`;
+
+const chatWindow = document.getElementById('chatWindow');
+let chatHistory = [];
+
+function addMessage(text, who){
+  const div = document.createElement('div');
+  div.className = 'msg ' + who;
+  div.textContent = text;
+  chatWindow.appendChild(div);
+  chatWindow.scrollTop = chatWindow.scrollHeight;
+  return div;
+}
+
+async function sendChat(userText){
+  if (!userText.trim()) return;
+  addMessage(userText, 'user');
+  chatHistory.push({ role: 'user', content: userText });
+  const loadingEl = addMessage('Thinking…', 'bot loading');
+
+  try {
+    const response = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        system: SYSTEM_PROMPT,
+        messages: chatHistory
+      })
+    });
+    const data = await response.json();
+    if (data.error) throw new Error(typeof data.error === 'string' ? data.error : JSON.stringify(data.error));
+    const textBlocks = (data.content || []).filter(b => b.type === 'text').map(b => b.text);
+    const reply = textBlocks.join('\n').trim() || "Sorry, I couldn't work that out — try asking in a different way.";
+    loadingEl.remove();
+    addMessage(reply, 'bot');
+    chatHistory.push({ role: 'assistant', content: reply });
+  } catch (err) {
+    loadingEl.remove();
+    addMessage("Something went wrong reaching the tax assistant. Please check your connection and try again.", 'bot');
+    console.error(err);
+  }
+}
+
+document.getElementById('sendBtn').addEventListener('click', () => {
+  const input = document.getElementById('chatInput');
+  const val = input.value;
+  input.value = '';
+  sendChat(val);
+});
+document.getElementById('chatInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter'){
+    const val = e.target.value;
+    e.target.value = '';
+    sendChat(val);
+  }
+});
+document.querySelectorAll('.chip').forEach(chip => {
+  chip.addEventListener('click', () => sendChat(chip.dataset.q));
+});
+
+function explainResult(s){
+  goToTab('chat');
+  const prompt = `Please explain my tax breakdown in very simple terms. Here are my numbers: income type = ${labelForType(s.incomeType)}, gross yearly income = ${fmtNaira(s.annualGross)}, chargeable income = ${fmtNaira(s.chargeableIncome)}, total tax owed = ${fmtNaira(s.total)} (${s.isExempt ? 'exempt / tax free' : 'taxable'}). Explain why I owe this amount (or why I'm exempt), like you're talking to a friend who has never filed tax before.`;
+  sendChat(prompt);
+}
+
+/* ---------------- WIRE CALC BUTTON ---------------- */
+document.getElementById('calcBtn').addEventListener('click', runCalculation);
+</script>
+</body>
+</html>
